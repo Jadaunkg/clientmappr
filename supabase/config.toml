@@ -1,0 +1,22 @@
+# Supabase Local Development Configuration
+# Generated for Phase 1 Development
+
+[project]
+name = "clientmapr-phase1"
+database.major_version = "15"
+
+[api]
+port = 54321
+schemas = ["public"]
+max_rows = 1000
+
+[db]
+port = 5432
+major_version = 15
+
+[realtime]
+enabled = true
+
+[auth]
+enable_signup = true
+email_auto_confirm = false

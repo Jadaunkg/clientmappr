@@ -69,37 +69,22 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // Routes
 // ============================================
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV,
-    },
-    error: null,
-    meta: {
-      timestamp: Date.now(),
-      version: '1.0',
-    },
-  });
+// Import route modules
+import('./src/routes/healthRoutes.js').then((module) => {
+  const healthRoutes = module.default;
+  app.use('/', healthRoutes);
+  app.use('/api/v1', healthRoutes);
+  logger.info('✅ Health routes mounted');
+}).catch((err) => {
+  logger.error('Failed to load health routes:', err);
 });
 
-// API routes (placeholder)
-app.get('/api/v1', (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'ClientMapr API v1',
-      version: '1.0.0',
-      endpoints: {
-        health: '/health',
-        auth: '/api/v1/auth',
-      },
-    },
-    error: null,
-  });
+import('./src/routes/userRoutes.js').then((module) => {
+  const userRoutes = module.default;
+  app.use('/api/v1', userRoutes);
+  logger.info('✅ User routes mounted');
+}).catch((err) => {
+  logger.error('Failed to load user routes:', err);
 });
 
 // 404 handler

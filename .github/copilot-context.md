@@ -9,8 +9,11 @@
 
 ## Architecture @ a Glance
 ```
-Frontend (React + Vite) → Backend (Express.js) → Supabase (PostgreSQL)
-     :3000                    :5000                http://localhost:54321
+Frontend (React + Firebase SDK) → Backend (Express.js + Firebase Admin SDK) → Database (Supabase PostgreSQL)
+        :3000                              :5000                          http://localhost:54321
+
+AUTHENTICATION: Firebase (handles signup, login, email verification, OAuth, password reset)
+DATABASE: Supabase (stores leads, subscriptions, interactions, exports, user profiles)
 ```
 
 ## Directory Structure Rules
@@ -87,60 +90,78 @@ Frontend (React + Vite) → Backend (Express.js) → Supabase (PostgreSQL)
 
 ## Authentication Flow
 
-**Backend:**
-- POST `/api/v1/auth/signup` - Create user with password hash
-- POST `/api/v1/auth/login` - Verify credentials, return JWT token
-- JWT token: 1-hour expiry, stored in Authorization header
-- Refresh token: 7-day expiry, stored in secure HTTP-only cookie
-- Middleware: `verifyJWT` extracts token from header, validates, attaches user to req
+### Firebase Authentication (Phase 1 MVP)
+Firebase Auth handles all authentication server-side:
+- **Signup:** User creates account via Firebase with email/password
+- **Social Login:** Google & LinkedIn OAuth integrated in Firebase Console
+- **Email Verification:** Firebase sends verification email natively
+- **Password Reset:** Firebase provides secure password reset flow
+- **Session Management:** Firebase SDK manages ID tokens locally
+- **Token Expiry:** 1 hour (Firebase default), auto-refresh in SDK
+- **MFA:** Firebase supports but disabled in Phase 1
 
-**Frontend:**
-- AuthContext manages user state and tokens
+### Backend Integration
+- Firebase Admin SDK verifies ID tokens from frontend
+- Tokens sent in Authorization header: `Bearer <firebase_id_token>`
+- Custom claims stored in Firebase for subscription tier, role, etc.
+- Middleware: `firebaseAuthMiddleware` verifies token and attaches user claims to req.user
+- Supabase RLS policies use Firebase UID as primary key
+
+### Frontend Integration
+- Firebase SDK initialized with project credentials
+- User authentication state managed by Firebase SDK (no localStorage needed)
+- AuthContext wraps Firebase SDK for React components
 - useAuth hook provides login/signup/logout functions
-- Protected routes check authentication
+- Protected routes check Firebase authentication state
 - Auto-redirect to login if unauthenticated
 - ProtectedRoute component wraps protected pages
 
 ## Database Tables (Supabase)
 
-**users:** id, email, password_hash, full_name, subscription_tier, oauth_provider, oauth_id, email_verified, created_at, updated_at
+All tables use VARCHAR(255) for user IDs to store Firebase UIDs (28 character strings)
+
+**users:** id (Firebase UID), email, full_name, phone_number, avatar_url, subscription_tier, status, email_verified, last_login, created_at, updated_at
+- id: VARCHAR(255) PRIMARY KEY (Firebase UID format)
+- No password_hash (Firebase manages passwords)
+- No oauth_provider/oauth_id (Firebase handles OAuth)
 
 **leads:** id, business_name, address, city, state, zip_code, phone, website_url, has_website, google_rating, review_count, business_category, latitude, longitude, created_at, updated_at
 
-**subscriptions:** id, user_id, plan_type, stripe_subscription_id, status, monthly_price, billing_cycle, current_period_start, current_period_end, created_at, updated_at
+**subscriptions:** id, user_id (Firebase UID), plan_type, stripe_subscription_id, stripe_customer_id, status, monthly_price, billing_cycle, current_period_start, current_period_end, created_at, updated_at
 
-**interactions:** id, user_id, lead_id, status, notes, created_at, updated_at
+**interactions:** id, user_id (Firebase UID), lead_id, status, notes, interaction_date, created_at, updated_at
 
-**exports:** id, user_id, format, file_name, file_path, record_count, status, error_message, created_at, updated_at
+**exports:** id, user_id (Firebase UID), format, file_name, file_path, record_count, status, error_message, created_at, updated_at
 
 ## API Endpoints (Phase 1)
 
 ```
-Authentication:
-  POST   /api/v1/auth/signup
-  POST   /api/v1/auth/login
-  POST   /api/v1/auth/logout
-  POST   /api/v1/auth/refresh-token
-  POST   /api/v1/auth/verify-email
-  POST   /api/v1/auth/reset-password
-
-Leads:
+Authentication: (Firebase handles these - backend is token verification only)
+  POST   /api/v1/auth/signup-callback       (create user profile after Firebase signup)
+  POST   /api/v1/auth/logout               (cleanup backend resources if needed)
+  
+Leads: (Protected - require Firebase auth)
   GET    /api/v1/leads (with filters & pagination)
   GET    /api/v1/leads/:id
   
-Exports:
+Exports: (Protected - Firebase required)
   POST   /api/v1/exports (create export)
   GET    /api/v1/exports (list user exports)
   GET    /api/v1/exports/:id (download export)
 
-Dashboard:
+Dashboard: (Protected - Firebase required)
   GET    /api/v1/dashboard/stats
   GET    /api/v1/dashboard/recent-leads
   
-User:
+User: (Protected - Firebase required)
   GET    /api/v1/user/profile
   PUT    /api/v1/user/profile
   GET    /api/v1/user/subscription
+  
+Billing: (Protected - Firebase required)
+  GET    /api/v1/billing/plans
+  POST   /api/v1/billing/subscribe
+  GET    /api/v1/billing/subscription
 ```
 
 ## Testing Standards
@@ -154,63 +175,102 @@ User:
 ## Security Checklist
 
 - ✅ No hardcoded secrets (use .env)
-- ✅ Passwords hashed with bcryptjs (salt rounds: 10)
-- ✅ JWT tokens signed with secret
-- ✅ Refresh tokens in secure HTTP-only cookies
+- ✅ Authentication outsourced to Firebase (SOC-2, PCI-DSS certified)
+- ✅ Firebase ID tokens verified on backend
+- ✅ Custom claims used for authorization (subscription tier, role)
+- ✅ Firebase email verification built-in
+- ✅ Firebase password reset flow built-in
+- ✅ Firebase OAuth2 for Google & LinkedIn
 - ✅ Input validation on all endpoints (Zod)
 - ✅ CORS configured for localhost
-- ✅ Rate limiting on auth endpoints
+- ✅ Rate limiting on API endpoints
 - ✅ No sensitive data in logs
-- ✅ SQL injection prevention (use parameterized queries)
+- ✅ SQL injection prevention (Supabase parameterized queries)
+- ✅ Row-level security (RLS) policies in Supabase
+- ✅ RLS policies use Firebase UID from JWT claims
 - ✅ OWASP Top 10 addressed
 
 ## Environment Variables
 
 **Backend .env:**
-NODE_ENV, PORT, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, SENDGRID_API_KEY, STRIPE_SECRET_KEY
+NODE_ENV, PORT, SUPABASE_URL, SUPABASE_SERVICE_KEY, DATABASE_URL, FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL, FIREBASE_DATABASE_URL, SENDGRID_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, UPLOAD_DIR, FILE_SIZE_LIMIT, MAX_EXPORTS_PER_MONTH, LOG_LEVEL
 
 **Frontend .env:**
-REACT_APP_API_URL, REACT_APP_SUPABASE_URL, REACT_APP_SUPABASE_ANON_KEY, REACT_APP_STRIPE_PUBLISHABLE_KEY
+REACT_APP_API_URL, REACT_APP_FIREBASE_API_KEY, REACT_APP_FIREBASE_AUTH_DOMAIN, REACT_APP_FIREBASE_PROJECT_ID, REACT_APP_FIREBASE_STORAGE_BUCKET, REACT_APP_FIREBASE_MESSAGING_SENDER_ID, REACT_APP_FIREBASE_APP_ID, REACT_APP_SUPABASE_URL, REACT_APP_SUPABASE_ANON_KEY, REACT_APP_STRIPE_PUBLISHABLE_KEY
 
 ## Common Patterns
 
-**Backend Service Function:**
+**Backend Middleware (Firebase Auth):**
 ```javascript
 /**
- * Authenticates user with email and password
- * @param {string} email - User email
- * @param {string} password - Plain text password
- * @returns {Promise<{accessToken, refreshToken}>}
- * @throws {AppError} If credentials invalid
+ * Middleware to verify Firebase ID token and attach user to request
+ * Firebase handles all authentication - this just verifies the token
  */
-async function login(email, password) {
-  const user = await supabase.from('users').select().eq('email', email).single();
-  if (!user) throw new AppError('Invalid credentials', 401);
-  const isValid = await bcrypt.compare(password, user.password_hash);
-  if (!isValid) throw new AppError('Invalid credentials', 401);
-  const token = jwt.sign({id: user.id}, process.env.JWT_SECRET, {expiresIn: '1h'});
-  return {accessToken: token};
+const firebaseAuthMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return next(new AppError('No token provided', 401));
+    
+    const decodedToken = await verifyFirebaseToken(token);
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: decodedToken.email_verified,
+    };
+    next();
+  } catch (error) {
+    next(new AppError('Authentication failed', 401));
+  }
+};
+```
+
+**Backend Service with Firebase + Supabase:**
+```javascript
+/**
+ * Gets user profile from Supabase using Firebase UID
+ * @param {string} firebaseUid - Firebase user ID (from auth token)
+ * @returns {Promise<Object>} User profile data
+ */
+async function getUserProfile(firebaseUid) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', firebaseUid)  // Firebase UID is primary key
+    .single();
+  
+  if (error || !data) throw new AppError('User not found', 404);
+  return data;
 }
 ```
 
-**Frontend Hook:**
+**Frontend Hook (Firebase + React):**
 ```javascript
+/**
+ * Custom hook for Firebase authentication
+ * Manages Firebase user state and authentication
+ */
 function useAuth() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   
-  const login = async (email, password) => {
-    setLoading(true);
-    try {
-      const response = await apiClient.post('/api/v1/auth/login', {email, password});
-      setUser(response.data.data.user);
-      localStorage.setItem('token', response.data.data.accessToken);
-    } finally {
+  useEffect(() => {
+    // Listen to Firebase auth state changes
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const token = await firebaseUser.getIdToken();
+        setUser(firebaseUser);
+        localStorage.setItem('firebaseToken', token);
+      } else {
+        setUser(null);
+        localStorage.removeItem('firebaseToken');
+      }
       setLoading(false);
-    }
-  };
+    });
+    return unsubscribe;
+  }, []);
   
-  return {user, loading, login};
+  const logout = () => signOut(firebaseAuth);
+  return { user, loading, logout };
 }
 ```
 

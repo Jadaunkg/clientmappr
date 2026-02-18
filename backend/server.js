@@ -7,8 +7,23 @@ const helmet = require('helmet');
 const path = require('path');
 const logger = require('./src/utils/logger');
 
+// Firebase Authentication
+const { initializeFirebase } = require('./src/utils/firebaseConfig');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ============================================
+// Firebase Initialization
+// ============================================
+
+try {
+  initializeFirebase();
+  logger.info('✅ Firebase Admin SDK initialized');
+} catch (error) {
+  logger.error('❌ Failed to initialize Firebase:', error);
+  // Continue running but auth endpoints will fail
+}
 
 // ============================================
 // Middleware Setup

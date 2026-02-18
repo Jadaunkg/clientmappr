@@ -7,16 +7,21 @@
 -- ============================================
 -- Users Table
 -- ============================================
+-- Firebase Authentication Integration:
+-- User authentication is handled by Firebase Auth
+-- This table stores user profile data and references Firebase UIDs
 CREATE TABLE IF NOT EXISTS users (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  id VARCHAR(255) PRIMARY KEY,  -- Firebase UID (28 characters)
   email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(255),
+  phone_number VARCHAR(20),
+  avatar_url TEXT,
   subscription_tier VARCHAR(50) DEFAULT 'free_trial' 
     CHECK (subscription_tier IN ('free_trial', 'starter', 'professional', 'enterprise')),
-  oauth_provider VARCHAR(50),
-  oauth_id VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'active'
+    CHECK (status IN ('active', 'suspended', 'deleted')),
   email_verified BOOLEAN DEFAULT FALSE,
+  last_login TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -48,12 +53,13 @@ CREATE TABLE IF NOT EXISTS leads (
 -- ============================================
 CREATE TABLE IF NOT EXISTS subscriptions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   plan_type VARCHAR(50) NOT NULL 
     CHECK (plan_type IN ('starter', 'professional', 'enterprise')),
   stripe_subscription_id VARCHAR(255),
+  stripe_customer_id VARCHAR(255),
   status VARCHAR(50) DEFAULT 'active' 
-    CHECK (status IN ('active', 'canceled', 'past_due')),
+    CHECK (status IN ('active', 'canceled', 'past_due', 'incomplete')),
   monthly_price INTEGER,
   billing_cycle VARCHAR(50) DEFAULT 'monthly' 
     CHECK (billing_cycle IN ('monthly', 'yearly')),
@@ -68,11 +74,12 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 -- ============================================
 CREATE TABLE IF NOT EXISTS interactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
   status VARCHAR(50) DEFAULT 'not_contacted' 
     CHECK (status IN ('not_contacted', 'contacted', 'qualified', 'rejected', 'won')),
   notes TEXT,
+  interaction_date TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -82,7 +89,7 @@ CREATE TABLE IF NOT EXISTS interactions (
 -- ============================================
 CREATE TABLE IF NOT EXISTS exports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   format VARCHAR(20) CHECK (format IN ('csv', 'excel', 'json')),
   file_name VARCHAR(255) NOT NULL,
   file_path VARCHAR(255),
@@ -121,19 +128,19 @@ ALTER TABLE exports ENABLE ROW LEVEL SECURITY;
 -- ============================================
 -- RLS Policies for Users
 -- ============================================
--- Allow users to read their own profile
+-- Allow users to read their own profile (Firebase UID from JWT claims)
 CREATE POLICY IF NOT EXISTS "Users can read own profile" ON users
   FOR SELECT
-  USING (auth.uid()::text = id::text);
+  USING (id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- Allow users to update their own profile
 CREATE POLICY IF NOT EXISTS "Users can update own profile" ON users
   FOR UPDATE
-  USING (auth.uid()::text = id::text)
-  WITH CHECK (auth.uid()::text = id::text);
+  USING (id = current_setting('request.jwt.claims'->>'sub', true))
+  WITH CHECK (id = current_setting('request.jwt.claims'->>'sub', true));
 
--- Allow public to insert (signup)
-CREATE POLICY IF NOT EXISTS "Anyone can signup" ON users
+-- Allow Firebase to insert new users (via backend service)
+CREATE POLICY IF NOT EXISTS "Backend can create user profiles" ON users
   FOR INSERT
   WITH CHECK (true);
 
@@ -143,7 +150,18 @@ CREATE POLICY IF NOT EXISTS "Anyone can signup" ON users
 -- Allow users to read their own subscriptions
 CREATE POLICY IF NOT EXISTS "Users can read own subscriptions" ON subscriptions
   FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true));
+
+-- Allow users to insert subscriptions
+CREATE POLICY IF NOT EXISTS "Users can insert subscriptions" ON subscriptions
+  FOR INSERT
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));
+
+-- Allow users to update their subscriptions
+CREATE POLICY IF NOT EXISTS "Users can update subscriptions" ON subscriptions
+  FOR UPDATE
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true))
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- ============================================
 -- RLS Policies for Interactions
@@ -151,18 +169,18 @@ CREATE POLICY IF NOT EXISTS "Users can read own subscriptions" ON subscriptions
 -- Allow users to read their own interactions
 CREATE POLICY IF NOT EXISTS "Users can read own interactions" ON interactions
   FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- Allow users to insert interactions
 CREATE POLICY IF NOT EXISTS "Users can insert interactions" ON interactions
   FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- Allow users to update their interactions
 CREATE POLICY IF NOT EXISTS "Users can update interactions" ON interactions
   FOR UPDATE
-  USING (auth.uid()::text = user_id::text)
-  WITH CHECK (auth.uid()::text = user_id::text);
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true))
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- ============================================
 -- RLS Policies for Exports
@@ -170,15 +188,15 @@ CREATE POLICY IF NOT EXISTS "Users can update interactions" ON interactions
 -- Allow users to read their own exports
 CREATE POLICY IF NOT EXISTS "Users can read own exports" ON exports
   FOR SELECT
-  USING (auth.uid()::text = user_id::text);
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- Allow users to insert exports
 CREATE POLICY IF NOT EXISTS "Users can insert exports" ON exports
   FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id::text);
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));
 
 -- Allow users to update their exports
 CREATE POLICY IF NOT EXISTS "Users can update exports" ON exports
   FOR UPDATE
-  USING (auth.uid()::text = user_id::text)
-  WITH CHECK (auth.uid()::text = user_id::text);
+  USING (user_id = current_setting('request.jwt.claims'->>'sub', true))
+  WITH CHECK (user_id = current_setting('request.jwt.claims'->>'sub', true));

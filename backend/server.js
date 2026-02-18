@@ -1,14 +1,16 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const compression = require('compression');
-const morgan = require('morgan');
-const helmet = require('helmet');
-const path = require('path');
-const logger = require('./src/utils/logger');
+import 'dotenv/config.js';
+import express from 'express';
+import cors from 'cors';
+import compression from 'compression';
+import morgan from 'morgan';
+import helmet from 'helmet';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import logger from './src/utils/logger.js';
+import { initializeFirebase } from './src/utils/firebaseConfig.js';
 
-// Firebase Authentication
-const { initializeFirebase } = require('./src/utils/firebaseConfig');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -70,22 +72,22 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // ============================================
 
 // Import route modules
-import('./src/routes/healthRoutes.js').then((module) => {
-  const healthRoutes = module.default;
+try {
+  const { default: healthRoutes } = await import('./src/routes/healthRoutes.js');
   app.use('/', healthRoutes);
   app.use('/api/v1', healthRoutes);
   logger.info('✅ Health routes mounted');
-}).catch((err) => {
+} catch (err) {
   logger.error('Failed to load health routes:', err);
-});
+}
 
-import('./src/routes/userRoutes.js').then((module) => {
-  const userRoutes = module.default;
+try {
+  const { default: userRoutes } = await import('./src/routes/userRoutes.js');
   app.use('/api/v1', userRoutes);
   logger.info('✅ User routes mounted');
-}).catch((err) => {
+} catch (err) {
   logger.error('Failed to load user routes:', err);
-});
+}
 
 // 404 handler
 app.use((req, res) => {
@@ -152,4 +154,4 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-module.exports = app;
+export default app;

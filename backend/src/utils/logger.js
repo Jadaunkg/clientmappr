@@ -1,4 +1,4 @@
-const winston = require('winston');
+import winston from 'winston';
 
 // Define log format
 const logFormat = winston.format.combine(
@@ -36,4 +36,4 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-module.exports = logger;
+export default logger;

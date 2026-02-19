@@ -3,9 +3,9 @@
  * Verifies Firebase ID tokens and attaches user claims to requests
  */
 
-import logger from './logger.js';
-import AppError from './AppError.js';
-import { extractTokenFromHeader, verifyAndGetUserClaims, logAuthEvent } from './firebaseUtils.js';
+import logger from '../utils/logger.js';
+import AppError from '../utils/AppError.js';
+import { extractTokenFromHeader, verifyAndGetUserClaims, logAuthEvent } from '../utils/firebaseUtils.js';
 
 /**
  * Middleware to verify Firebase authentication token
@@ -173,9 +173,5 @@ export const requireSubscription = (minTier = 'starter') => {
   };
 };
 
-export default {
-  firebaseAuthMiddleware,
-  optionalFirebaseAuth,
-  requireOwner,
-  requireSubscription,
-};
+// All middleware functions exported as named exports above
+// Use: import { firebaseAuthMiddleware, requireOwner, requireSubscription } from './firebaseAuth.js'

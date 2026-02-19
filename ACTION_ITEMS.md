@@ -307,7 +307,7 @@ The backend is **100% production-ready** and ready for frontend integration!
 **Problem:** Supabase connection fails
 - [ ] Check `SUPABASE_URL` starts with "https://"
 - [ ] Check anon key and service role key are filled
-- [ ] Check SQL query ran without errors
+- [ ] Check SQL query ran without errors9
 
 **Problem:** Tests won't run
 - [ ] This is OK for now - code is manually verified

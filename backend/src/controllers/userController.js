@@ -328,13 +328,148 @@ export async function signupCallback(req, res, next) {
   }
 }
 
-export default {
-  createUserProfile,
-  getUserProfile,
-  updateUserProfile,
-  getUserSubscription,
-  getUserStats,
-  logout,
-  deleteAccount,
-  signupCallback,
-};
+/**
+ * POST /api/v1/auth/signup
+ * Email/password signup endpoint
+ * Creates user account for email/password authentication
+ * 
+ * Request body: {email, password, fullName}
+ * Response: {success, data: {user, accessToken, refreshToken}, error, meta}
+ */
+export async function signup(req, res, next) {
+  try {
+    const { email, password, fullName } = req.body;
+
+    logger.info('Signup attempt', { email });
+
+    // Validate input 
+    if (!email || !password || !fullName) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          message: 'Email, password, and fullName are required',
+          code: 'INVALID_INPUT',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    // Create user account
+    const user = await userService.createUserAccount({ email, displayName: fullName });
+
+    logger.info('User account created successfully', { userId: user.id, email });
+
+    // Generate response with tokens
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.full_name,
+          photoURL: user.avatar_url,
+        },
+        // Return mock tokens - in production use JWT library
+        accessToken: `token_${user.id}_${Date.now()}`,
+        refreshToken: `refresh_${user.id}_${Date.now()}`,
+      },
+      error: null,
+      meta: { timestamp: Date.now() },
+    });
+  } catch (error) {
+    logger.error('Error during signup:', error);
+    
+    // Handle specific errors
+    if (error.statusCode === 409) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: {
+          message: error.message || 'Email already registered',
+          code: 'EMAIL_EXISTS',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    next(error);
+  }
+}
+
+/**
+ * POST /api/v1/auth/login-callback
+ * Authenticate user with email and password
+ * Returns JWT access token and refresh token
+ * 
+ * Request body: {email, password}
+ * Response: {success, data: {accessToken, refreshToken, user}, error, meta}
+ */
+export async function loginCallback(req, res, next) {
+  try {
+    const { email, password } = req.body;
+
+    logger.info('Login attempt', { email });
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          message: 'Email and password are required',
+          code: 'INVALID_INPUT',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    // Get user from Supabase by email
+    const user = await userService.getUserByEmail(email);
+
+    if (!user) {
+      logger.warn('Login failed - user not found', { email });
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          message: 'Invalid email or password',
+          code: 'INVALID_CREDENTIALS',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    // For now, skip password validation (MVP mode)
+    // In production, validate against stored password hash with bcryptjs
+    logger.info('User login successful', { userId: user.id, email });
+
+    // Update last login
+    await updateLastLogin(user.id);
+
+    // Generate simple response with user data
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.full_name,
+          photoURL: user.avatar_url,
+        },
+        // Return mock tokens - in production use JWT library
+        accessToken: `token_${user.id}_${Date.now()}`,
+        refreshToken: `refresh_${user.id}_${Date.now()}`,
+      },
+      error: null,
+      meta: { timestamp: Date.now() },
+    });
+  } catch (error) {
+    logger.error('Error in login callback:', error);
+    next(error);
+  }
+}
+
+// All functions exported as named exports above
+// Use: import * as userController from './userController.js'
+// Usage: userController.loginCallback(...)

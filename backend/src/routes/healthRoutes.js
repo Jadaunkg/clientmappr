@@ -48,7 +48,7 @@ router.get('/health/deep', async (req, res) => {
 
     // Check database connectivity
     try {
-      const { error } = await supabase.from('users').select('count(id)', { count: 'exact', head: true });
+      const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });
       healthStatus.database = error ? 'FAILED' : 'OK';
     } catch (dbError) {
       healthStatus.database = 'ERROR';

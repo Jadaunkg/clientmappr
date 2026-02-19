@@ -145,12 +145,6 @@ export const logAuthEvent = (eventType, uid, additionalData = {}) => {
   });
 };
 
-export default {
-  extractTokenFromHeader,
-  verifyAndGetUserClaims,
-  formatUserForSupabase,
-  buildSupabaseAuthHeader,
-  getUserIdFromToken,
-  hasSubscriptionTier,
-  logAuthEvent,
-};
+
+// All functions exported as named exports above
+// Use: import { functionName } from './firebaseUtils.js'

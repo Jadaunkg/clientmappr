@@ -29,6 +29,8 @@ CREATE TABLE users (
   full_name VARCHAR(255),
   phone_number VARCHAR(20),
   avatar_url TEXT,
+  oauth_provider VARCHAR(50),                             -- 'google', 'linkedin', or NULL
+  oauth_id VARCHAR(255),                                  -- Provider's user ID
   subscription_tier subscription_tier DEFAULT 'free_trial',
   status user_status DEFAULT 'active',
   email_verified BOOLEAN DEFAULT FALSE,
@@ -45,6 +47,7 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_subscription_tier ON users(subscription_tier);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_created_at ON users(created_at DESC);
+CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_id);
 
 -- ============================================
 -- Leads Table

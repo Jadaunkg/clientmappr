@@ -61,6 +61,14 @@ const urlSchema = z.string().url('Invalid URL format').optional().or(z.literal('
  * Create User Profile Schema (after Firebase signup)
  * Called when new Firebase user is created
  */
+/**
+ * @typedef {Object} CreateUserProfileInput
+ * @property {string} firebaseUID - Firebase UID (28 chars)
+ * @property {string} email - User email
+ * @property {string} fullName - User's full name
+ * @property {string} phoneNumber - User's phone number
+ * @property {string} avatarUrl - Avatar URL
+ */
 export const createUserProfileSchema = z.object({
   firebaseUID: firebaseUidSchema,
   email: emailSchema,
@@ -69,19 +77,21 @@ export const createUserProfileSchema = z.object({
   avatarUrl: urlSchema,
 });
 
-export type CreateUserProfileInput = z.infer<typeof createUserProfileSchema>;
-
 /**
  * Update User Profile Schema
  * User can update their profile information
+ */
+/**
+ * @typedef {Object} UpdateUserProfileInput
+ * @property {string} [fullName] - User's full name (optional)
+ * @property {string} [phoneNumber] - User's phone number (optional)
+ * @property {string} [avatarUrl] - Avatar URL (optional)
  */
 export const updateUserProfileSchema = z.object({
   fullName: fullNameSchema.optional(),
   phoneNumber: phoneNumberSchema.optional(),
   avatarUrl: urlSchema.optional(),
 });
-
-export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 
 /**
  * Get User Profile Schema (response)
@@ -100,30 +110,37 @@ export const userProfileResponseSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-export type UserProfileResponse = z.infer<typeof userProfileResponseSchema>;
+// Type definitions in JSDoc above
 
 /**
  * Subscription Update Schema
  * Admin/Backend updates subscription tier for user
  */
+/**
+ * @typedef {Object} UpdateSubscriptionInput
+ * @property {string} subscriptionTier - New subscription tier
+ */
 export const updateSubscriptionSchema = z.object({
   subscriptionTier: subscriptionTierSchema,
 });
-
-export type UpdateSubscriptionInput = z.infer<typeof updateSubscriptionSchema>;
 
 /**
  * User Settings Schema
  * Optional user preferences
  */
+/**
+ * @typedef {Object} UserSettingsInput
+ * @property {boolean} [emailNotifications] - Email notifications toggle
+ * @property {boolean} [weeklyReport] - Weekly report toggle
+ * @property {string} [theme] - UI theme (light/dark)
+ * @property {string} [language] - User language code (2 chars)
+ */
 export const userSettingsSchema = z.object({
   emailNotifications: z.boolean().optional(),
   weeklyReport: z.boolean().optional(),
   theme: z.enum(['light', 'dark']).optional(),
-  language: z.string().length(2).optional(), // e.g., 'en', 'es'
+  language: z.string().length(2).optional(),
 });
-
-export type UserSettingsInput = z.infer<typeof userSettingsSchema>;
 
 /**
  * List Users Query Schema (admin endpoint)
@@ -136,7 +153,7 @@ export const listUsersQuerySchema = z.object({
   search: z.string().optional(), // Search by email or name
 });
 
-export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
+// ListUsersQuery type defined in JSDoc above
 
 /**
  * Stripe Customer Schema
@@ -147,7 +164,7 @@ export const stripeCustomerSchema = z.object({
   lastSyncedAt: z.string().datetime(),
 });
 
-export type StripeCustomerInput = z.infer<typeof stripeCustomerSchema>;
+// StripeCustomerInput type defined in JSDoc above
 
 /**
  * Validation helper function
@@ -170,13 +187,5 @@ export function validateData(schema, data, errorMessage = 'Validation failed') {
   return result.data;
 }
 
-export default {
-  createUserProfileSchema,
-  updateUserProfileSchema,
-  userProfileResponseSchema,
-  updateSubscriptionSchema,
-  userSettingsSchema,
-  listUsersQuerySchema,
-  stripeCustomerSchema,
-  validateData,
-};
+// All schemas and functions exported as named exports above
+// Usage: import { createUserProfileSchema, validateData } from './userValidators.js'

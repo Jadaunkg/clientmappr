@@ -89,6 +89,14 @@ try {
   logger.error('Failed to load user routes:', err);
 }
 
+try {
+  const { default: oauthRoutes } = await import('./src/routes/oauthRoutes.js');
+  app.use('/api/v1/auth', oauthRoutes);
+  logger.info('✅ OAuth routes mounted');
+} catch (err) {
+  logger.error('Failed to load OAuth routes:', err);
+}
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({

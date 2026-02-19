@@ -419,16 +419,87 @@ export async function getUserStats(firebaseUid) {
   }
 }
 
-export default {
-  createUserProfile,
-  getUserProfile,
-  updateUserProfile,
-  updateLastLogin,
-  updateSubscriptionTier,
-  suspendUser,
-  userExists,
-  getUserSubscription,
-  listUsers,
-  deleteUserAccount,
-  getUserStats,
-};
+/**
+ * Get user by email for login/authentication
+ * 
+ * @param {string} email - User email address
+ * @returns {Promise<object|null>} User object or null if not found
+ */
+export async function getUserByEmail(email) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows found, which is expected
+      throw error;
+    }
+
+    return data || null;
+  } catch (error) {
+    logger.error('Error fetching user by email:', error);
+    if (error.code === 'PGRST116') return null; // Expected: no rows
+    throw new AppError('Failed to fetch user', 500);
+  }
+}
+
+/**
+ * Create user account with email and password
+ * For email/password signup flow
+ * 
+ * @param {string} email - User email
+ * @param {string} displayName - User's display name
+ * @returns {Promise<object>} Created user object
+ */
+export async function createUserAccount({ email, displayName = '' }) {
+  try {
+    // Check if user already exists
+    const existingUser = await getUserByEmail(email);
+    if (existingUser) {
+      throw new AppError('Email already registered', 409);
+    }
+
+    // Generate a unique user ID (for email/password users without Firebase)
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create user in Supabase
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{
+        id: userId,
+        email,
+        full_name: displayName,
+        subscription_tier: 'free_trial',
+        status: 'active',
+        email_verified: false,
+        last_login: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Error creating user account:', error);
+      if (error.code === '23505') {
+        // Unique constraint violation
+        throw new AppError('Email already registered', 409);
+      }
+      throw new AppError('Failed to create user account', 500);
+    }
+
+    logger.info('User account created', { userId: data.id, email });
+    return data;
+  } catch (error) {
+    logger.error('Error creating user account:', error);
+    if (error.statusCode) throw error;
+    throw new AppError('Failed to create user account', 500);
+  }
+}
+
+// All functions exported as named exports above
+// Use: import * as userService from './userService.js'

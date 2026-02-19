@@ -11,11 +11,25 @@ import * as userController from '../controllers/userController.js';
 const router = express.Router();
 
 /**
+ * POST /api/v1/auth/signup
+ * Email/password user registration
+ * No authentication required
+ */
+router.post('/auth/signup', userController.signup);
+
+/**
  * POST /api/v1/auth/signup-callback
  * Create user profile after Firebase signup
  * Requires valid Firebase token in Authorization header
  */
 router.post('/auth/signup-callback', firebaseAuthMiddleware, userController.signupCallback);
+
+/**
+ * POST /api/v1/auth/login-callback
+ * Login with email and password
+ * Body: {email, password}
+ */
+router.post('/auth/login-callback', userController.loginCallback);
 
 /**
  * GET /api/v1/users/profile

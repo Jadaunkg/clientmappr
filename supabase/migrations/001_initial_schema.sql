@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   full_name VARCHAR(255),
   phone_number VARCHAR(20),
   avatar_url TEXT,
+  oauth_provider VARCHAR(50),  -- 'google', 'linkedin', or NULL for email/password auth
+  oauth_id VARCHAR(255),  -- Provider-specific user ID from OAuth provider
   subscription_tier VARCHAR(50) DEFAULT 'free_trial' 
     CHECK (subscription_tier IN ('free_trial', 'starter', 'professional', 'enterprise')),
   status VARCHAR(50) DEFAULT 'active'
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS exports (
 -- Indexes for Performance
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
 CREATE INDEX IF NOT EXISTS idx_leads_city ON leads(city);
 CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state);
 CREATE INDEX IF NOT EXISTS idx_leads_category ON leads(business_category);

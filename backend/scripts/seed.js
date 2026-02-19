@@ -12,8 +12,9 @@
  * - Clears data if --clean flag is passed
  */
 
+import 'dotenv/config.js';
 import { createClient } from '@supabase/supabase-js';
-import logger from './src/utils/logger.js';
+import logger from '../src/utils/logger.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
@@ -25,7 +26,7 @@ const shouldClean = process.argv.includes('--clean');
  */
 const testUsers = [
   {
-    id: 'user-dev-001-testfirebaseuid01',
+    id: 'testuid00001xxxxxxxxx0001001',  // Exactly 28 chars
     email: 'developer@clientmapr.dev',
     full_name: 'Developer User',
     phone_number: '+1234567890',
@@ -36,7 +37,7 @@ const testUsers = [
     last_login: new Date().toISOString(),
   },
   {
-    id: 'user-dev-002-testfirebaseuid02',
+    id: 'testuid00002xxxxxxxxx0002002',  // Exactly 28 chars
     email: 'tester@clientmapr.dev',
     full_name: 'Tester User',
     phone_number: '+9876543210',
@@ -47,7 +48,7 @@ const testUsers = [
     last_login: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
   {
-    id: 'user-dev-003-testfirebaseuid03',
+    id: 'testuid00003xxxxxxxxx0003003',  // Exactly 28 chars
     email: 'freemium@clientmapr.dev',
     full_name: 'Freemium User',
     phone_number: null,

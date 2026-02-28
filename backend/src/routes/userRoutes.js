@@ -32,6 +32,12 @@ router.post('/auth/signup-callback', firebaseAuthMiddleware, userController.sign
 router.post('/auth/login-callback', userController.loginCallback);
 
 /**
+ * POST /api/v1/auth/refresh-token
+ * Refresh JWT access token using refresh token
+ */
+router.post('/auth/refresh-token', userController.refreshToken);
+
+/**
  * GET /api/v1/users/profile
  * Get authenticated user's profile
  * Requires: Auth token

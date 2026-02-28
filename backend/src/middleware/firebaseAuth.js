@@ -6,10 +6,11 @@
 import logger from '../utils/logger.js';
 import AppError from '../utils/AppError.js';
 import { extractTokenFromHeader, verifyAndGetUserClaims, logAuthEvent } from '../utils/firebaseUtils.js';
+import { verifyAccessToken } from '../utils/authTokens.js';
 
 /**
- * Middleware to verify Firebase authentication token
- * Expects token in Authorization header: "Bearer <firebase_id_token>"
+ * Middleware to verify JWT access token
+ * Expects token in Authorization header: "Bearer <access_token>"
  * Attaches decoded user claims to req.user
  * 
  * Usage in Express:
@@ -30,29 +31,34 @@ export const firebaseAuthMiddleware = async (req, res, next) => {
       return next(new AppError('Invalid token format. Use: Bearer <token>', 401));
     }
 
-    // Verify Firebase token and get user claims
-    const userClaims = await verifyAndGetUserClaims(token);
+    // Verify JWT access token
+    const decoded = verifyAccessToken(token);
     
     // Attach user claims to request object
-    req.user = userClaims;
-    req.firebaseToken = token;
+    req.user = {
+      uid: decoded.userId,
+      email: decoded.email,
+      name: decoded.name,
+      provider: decoded.provider,
+    };
+    req.accessToken = token;
     
     // Log successful authentication
-    logAuthEvent('TOKEN_VERIFIED', userClaims.uid, {
-      email: userClaims.email,
-      provider: userClaims.provider,
+    logAuthEvent('TOKEN_VERIFIED', decoded.userId, {
+      email: decoded.email,
+      provider: decoded.provider,
     });
 
     next();
   } catch (error) {
-    logger.error('Firebase authentication failed:', error);
+    logger.error('JWT authentication failed:', error);
     
-    if (error.message.includes('token is revoked')) {
-      return next(new AppError('Session has been revoked. Please log in again', 401));
+    if (error.name === 'TokenExpiredError') {
+      return next(new AppError('Session expired. Please refresh your token', 401));
     }
     
-    if (error.message.includes('auth/id-token-expired')) {
-      return next(new AppError('Session expired. Please log in again', 401));
+    if (error.name === 'JsonWebTokenError') {
+      return next(new AppError('Invalid token. Please log in again', 401));
     }
 
     return next(new AppError('Authentication failed', 401));

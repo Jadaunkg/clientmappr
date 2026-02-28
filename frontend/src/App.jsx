@@ -2,9 +2,15 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import AppShell from './components/AppShell';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
+import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
+import LeadSearchPage from './pages/LeadSearchPage';
+import MyLeadsPage from './pages/MyLeadsPage';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 import './App.css';
 
 /**
@@ -17,21 +23,24 @@ function App() {
       <AuthProvider>
         <Routes>
           {/* Public Routes */}
+          <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
 
           {/* Protected Routes */}
           <Route
-            path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <AppShell />
               </ProtectedRoute>
             }
-          />
-
-          {/* Default Route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/search" element={<LeadSearchPage />} />
+            <Route path="/leads" element={<MyLeadsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
 
           {/* 404 Route */}
           <Route
@@ -48,7 +57,7 @@ function App() {
               </div>
             }
           />
-        </Routes>
+          </Routes>
       </AuthProvider>
     </Router>
   );

@@ -8,12 +8,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import logger from './src/utils/logger.js';
 import { initializeFirebase } from './src/utils/firebaseConfig.js';
+import { validateGoogleMapsConfig } from './src/config/googleMaps.js';
+import healthRoutes from './src/routes/healthRoutes.js';
+import userRoutes from './src/routes/userRoutes.js';
+import oauthRoutes from './src/routes/oauthRoutes.js';
+import leadsRoutes from './src/routes/leadsRoutes.js';
+import { startLeadIngestionQueue } from './src/jobs/leadIngestionQueue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
 const PORT = process.env.PORT || 5000;
+const app = express();
 
 // ============================================
 // Firebase Initialization
@@ -25,6 +31,13 @@ try {
 } catch (error) {
   logger.error('❌ Failed to initialize Firebase:', error);
   // Continue running but auth endpoints will fail
+}
+
+const googleMapsConfig = validateGoogleMapsConfig();
+if (googleMapsConfig.isValid) {
+  logger.info('✅ Google Maps credentials validated');
+} else {
+  logger.warn(`⚠️ Google Maps configuration issue: ${googleMapsConfig.message}`);
 }
 
 // ============================================
@@ -71,31 +84,16 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // Routes
 // ============================================
 
-// Import route modules
-try {
-  const { default: healthRoutes } = await import('./src/routes/healthRoutes.js');
-  app.use('/', healthRoutes);
-  app.use('/api/v1', healthRoutes);
-  logger.info('✅ Health routes mounted');
-} catch (err) {
-  logger.error('Failed to load health routes:', err);
-}
+app.use('/', healthRoutes);
+app.use('/api/v1', healthRoutes);
+app.use('/api/v1', userRoutes);
+app.use('/api/v1', leadsRoutes);
+app.use('/api/v1/auth', oauthRoutes);
 
-try {
-  const { default: userRoutes } = await import('./src/routes/userRoutes.js');
-  app.use('/api/v1', userRoutes);
-  logger.info('✅ User routes mounted');
-} catch (err) {
-  logger.error('Failed to load user routes:', err);
-}
-
-try {
-  const { default: oauthRoutes } = await import('./src/routes/oauthRoutes.js');
-  app.use('/api/v1/auth', oauthRoutes);
-  logger.info('✅ OAuth routes mounted');
-} catch (err) {
-  logger.error('Failed to load OAuth routes:', err);
-}
+logger.info('✅ Health routes mounted');
+logger.info('✅ User routes mounted');
+logger.info('✅ Leads routes mounted');
+logger.info('✅ OAuth routes mounted');
 
 // 404 handler
 app.use((req, res) => {
@@ -145,11 +143,24 @@ app.use((err, req, res, next) => {
 // Server Startup
 // ============================================
 
-app.listen(PORT, () => {
-  logger.info(`🚀 Server running on http://localhost:${PORT}`);
-  logger.info(`📝 Environment: ${process.env.NODE_ENV}`);
-  logger.info(`🔒 CORS enabled for: ${allowedOrigins.join(', ')}`);
-});
+const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isDirectExecution) {
+  if (process.env.ENABLE_LEAD_PIPELINE === 'true') {
+    try {
+      startLeadIngestionQueue();
+      logger.info('✅ Lead ingestion queue initialized');
+    } catch (error) {
+      logger.error('❌ Failed to initialize lead ingestion queue', { message: error.message });
+    }
+  }
+
+  app.listen(PORT, () => {
+    logger.info(`🚀 Server running on http://localhost:${PORT}`);
+    logger.info(`📝 Environment: ${process.env.NODE_ENV}`);
+    logger.info(`🔒 CORS enabled for: ${allowedOrigins.join(', ')}`);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

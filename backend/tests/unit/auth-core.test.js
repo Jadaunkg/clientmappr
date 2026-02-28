@@ -6,34 +6,7 @@ import { jest, describe, test, expect, beforeEach } from '@jest/globals';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// Mock setup for external dependencies
-jest.mock('@supabase/supabase-js', () => {
-  return {
-    createClient: jest.fn(() => ({
-      from: jest.fn(() => ({
-        insert: jest.fn(),
-        select: jest.fn(),
-        eq: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn()
-      }))
-    }))
-  };
-});
-
-jest.mock('firebase-admin', () => ({
-  initializeApp: jest.fn(),
-  auth: jest.fn(() => ({
-    verifyIdToken: jest.fn(),
-    createUser: jest.fn()
-  }))
-}));
-
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn(() => ({
-    sendMail: jest.fn()
-  }))
-}));
+// Note: no source module imports here; tests exercise bcryptjs/jwt directly
 
 // Test suite for Auth Service
 describe('Auth Service - Email/Password Authentication', () => {

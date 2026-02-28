@@ -5,11 +5,37 @@
 
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { checkRedisHealth } from '../config/redis.js';
+import { checkElasticsearchHealth } from '../config/elasticsearch.js';
 
 const router = express.Router();
 
-// Initialize Supabase client for health checks
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const getSupabaseClient = () => {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    return null;
+  }
+
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+};
+
+/**
+ * GET /
+ * Root endpoint
+ * Returns basic API information
+ */
+router.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      message: 'ClientMapr API is running',
+      version: '1.0.0',
+    },
+    error: null,
+    meta: {
+      timestamp: Date.now(),
+    },
+  });
+});
 
 /**
  * GET /health
@@ -42,19 +68,42 @@ router.get('/health/deep', async (req, res) => {
     const healthStatus = {
       server: 'OK',
       database: 'CHECKING',
+      redis: 'CHECKING',
+      elasticsearch: 'CHECKING',
       firebase: process.env.FIREBASE_PROJECT_ID ? 'CONFIGURED' : 'NOT_CONFIGURED',
       timestamp: new Date().toISOString(),
+      details: {},
     };
 
     // Check database connectivity
     try {
-      const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });
-      healthStatus.database = error ? 'FAILED' : 'OK';
+      const supabase = getSupabaseClient();
+
+      if (!supabase) {
+        healthStatus.database = 'NOT_CONFIGURED';
+        healthStatus.details.database = 'SUPABASE_URL or SUPABASE_SERVICE_KEY is missing';
+      } else {
+        const { error } = await supabase.from('users').select('id', { count: 'exact', head: true });
+        healthStatus.database = error ? 'FAILED' : 'OK';
+        healthStatus.details.database = error ? error.message : 'Supabase query successful';
+      }
     } catch (dbError) {
-      healthStatus.database = 'ERROR';
+      healthStatus.database = 'FAILED';
+      healthStatus.details.database = dbError.message;
     }
 
-    const isHealthy = healthStatus.server === 'OK' && healthStatus.database === 'OK';
+    const redisHealth = await checkRedisHealth();
+    healthStatus.redis = redisHealth.status;
+    healthStatus.details.redis = redisHealth.details;
+
+    const elasticHealth = await checkElasticsearchHealth();
+    healthStatus.elasticsearch = elasticHealth.status;
+    healthStatus.details.elasticsearch = elasticHealth.details;
+
+    const isHealthy = healthStatus.server === 'OK'
+      && healthStatus.database !== 'FAILED'
+      && healthStatus.redis !== 'FAILED'
+      && healthStatus.elasticsearch !== 'FAILED';
 
     res.status(isHealthy ? 200 : 503).json({
       success: isHealthy,

@@ -16,7 +16,7 @@ describe('User Validators', () => {
   describe('createUserProfileSchema', () => {
     test('should validate correct user profile data', () => {
       const validData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: 'Test User',
         phoneNumber: '+1234567890',
@@ -29,7 +29,7 @@ describe('User Validators', () => {
 
     test('should reject invalid email', () => {
       const invalidData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'invalid-email',
         fullName: 'Test User',
       };
@@ -51,7 +51,7 @@ describe('User Validators', () => {
 
     test('should require full name with minimum length', () => {
       const invalidData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: 'A', // Too short
       };
@@ -62,7 +62,7 @@ describe('User Validators', () => {
 
     test('should accept optional fields', () => {
       const minimumData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: 'Test User',
       };
@@ -73,7 +73,7 @@ describe('User Validators', () => {
 
     test('should reject special characters in full name', () => {
       const invalidData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: 'Test@#$%',
       };
@@ -84,7 +84,7 @@ describe('User Validators', () => {
 
     test('should allow hyphens and apostrophes in names', () => {
       const validData = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: "Mary-Jane O'Brien",
       };
@@ -216,7 +216,7 @@ describe('User Validators', () => {
   describe('validateData helper', () => {
     test('should return validated data on success', () => {
       const data = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'user@example.com',
         fullName: 'Test User',
       };
@@ -251,7 +251,7 @@ describe('User Validators', () => {
   describe('Email normalization', () => {
     test('should lowercase email addresses', () => {
       const data = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: 'USER@EXAMPLE.COM',
         fullName: 'Test User',
       };
@@ -263,7 +263,7 @@ describe('User Validators', () => {
 
     test('should trim whitespace from email', () => {
       const data = {
-        firebaseUID: 'test-firebase-uid-12345678',
+        firebaseUID: 'test-firebase-uid-1234567890',
         email: '  user@example.com  ',
         fullName: 'Test User',
       };

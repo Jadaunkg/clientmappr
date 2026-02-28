@@ -2,14 +2,32 @@
  * OAuth Service Tests
  * Tests for Google and LinkedIn OAuth integration
  * Unit tests for OAuth service functions
+ *
+ * ESM-compatible: uses jest.unstable_mockModule + dynamic import
  */
 
-import {
+import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+
+// Mock @supabase/supabase-js to prevent top-level createClient() from throwing
+jest.unstable_mockModule('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    from: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      insert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+    }),
+  })),
+}));
+
+const {
   generateGoogleAuthUrl,
   generateLinkedInAuthUrl,
   handleGoogleCallback,
   handleLinkedInCallback,
-} from '../src/services/oauthService.js';
+} = await import('../../src/services/oauthService.js');
+
 
 describe('OAuth Service', () => {
   beforeEach(() => {
@@ -87,7 +105,7 @@ describe('OAuth Service', () => {
     test('handleGoogleCallback should throw error for missing code', async () => {
       try {
         await handleGoogleCallback(null);
-        fail('Should have thrown error');
+        expect(true).toBe(false) // Should have thrown;
       } catch (error) {
         expect(error.message).toContain('Missing authorization code');
         expect(error.statusCode).toBe(400);
@@ -97,7 +115,7 @@ describe('OAuth Service', () => {
     test('handleGoogleCallback should throw error for empty code', async () => {
       try {
         await handleGoogleCallback('');
-        fail('Should have thrown error');
+        expect(true).toBe(false) // Should have thrown;
       } catch (error) {
         expect(error.message).toContain('Missing authorization code');
       }
@@ -106,7 +124,7 @@ describe('OAuth Service', () => {
     test('handleLinkedInCallback should throw error for missing code', async () => {
       try {
         await handleLinkedInCallback(null, 'state');
-        fail('Should have thrown error');
+        expect(true).toBe(false) // Should have thrown;
       } catch (error) {
         expect(error.message).toContain('Missing authorization code');
         expect(error.statusCode).toBe(400);

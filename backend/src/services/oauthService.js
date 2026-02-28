@@ -17,6 +17,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import AppError from '../utils/AppError.js';
+import { generateTokens } from '../utils/authTokens.js';
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -130,7 +131,7 @@ export async function handleGoogleCallback(code) {
     }
 
     // Generate JWT tokens for our app
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    const tokenBundle = generateTokens(user.id);
 
     logger.info('Successfully processed Google OAuth', { userId: user.id });
 
@@ -143,8 +144,7 @@ export async function handleGoogleCallback(code) {
         avatar_url: user.avatar_url,
         subscription_tier: user.subscription_tier,
       },
-      accessToken,
-      refreshToken,
+      ...tokenBundle,
     };
   } catch (error) {
     if (error instanceof AppError) {
@@ -294,7 +294,7 @@ export async function handleLinkedInCallback(code, state) {
     }
 
     // Generate JWT tokens
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    const tokenBundle = generateTokens(user.id);
 
     logger.info('Successfully processed LinkedIn OAuth', { userId: user.id });
 
@@ -307,8 +307,7 @@ export async function handleLinkedInCallback(code, state) {
         avatar_url: user.avatar_url,
         subscription_tier: user.subscription_tier,
       },
-      accessToken,
-      refreshToken,
+      ...tokenBundle,
     };
   } catch (error) {
     if (error instanceof AppError) {
@@ -317,47 +316,6 @@ export async function handleLinkedInCallback(code, state) {
     }
     logger.error('Error handling LinkedIn OAuth callback:', error);
     throw new AppError('Failed to process LinkedIn authentication', 500);
-  }
-}
-
-/**
- * Generate simple auth tokens for OAuth users
- * Returns a session token that can be used for subsequent requests
- * 
- * @param {string} userId - User ID to encode in token
- * @returns {object} {accessToken: '...', refreshToken: '...'}
- */
-function generateTokens(userId) {
-  try {
-    // Generate simple tokens using base64 encoding for demo purposes
-    // In production, should use proper JWT with signing
-    const timestamp = Date.now();
-    
-    // Create a simple session token
-    const tokenData = {
-      userId,
-      type: 'access',
-      iat: timestamp,
-      exp: timestamp + (1 * 60 * 60 * 1000), // 1 hour
-    };
-    
-    const accessToken = Buffer.from(JSON.stringify(tokenData)).toString('base64');
-    
-    const refreshTokenData = {
-      userId,
-      type: 'refresh',
-      iat: timestamp,
-      exp: timestamp + (7 * 24 * 60 * 60 * 1000), // 7 days
-    };
-    
-    const refreshToken = Buffer.from(JSON.stringify(refreshTokenData)).toString('base64');
-
-    logger.debug('Generated tokens for OAuth user', { userId });
-
-    return { accessToken, refreshToken };
-  } catch (error) {
-    logger.error('Error generating tokens:', error);
-    throw new AppError('Failed to generate authentication tokens', 500);
   }
 }
 

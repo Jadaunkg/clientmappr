@@ -13,6 +13,7 @@ import {
 } from '../validators/userValidators.js';
 import * as userService from '../services/userService.js';
 import { updateLastLogin } from '../services/userService.js';
+import { generateTokens, verifyRefreshToken } from '../utils/authTokens.js';
 
 /**
  * POST /api/v1/users/profile
@@ -361,6 +362,8 @@ export async function signup(req, res, next) {
     logger.info('User account created successfully', { userId: user.id, email });
 
     // Generate response with tokens
+    const tokenBundle = generateTokens(user.id);
+
     res.status(201).json({
       success: true,
       data: {
@@ -370,9 +373,7 @@ export async function signup(req, res, next) {
           fullName: user.full_name,
           photoURL: user.avatar_url,
         },
-        // Return mock tokens - in production use JWT library
-        accessToken: `token_${user.id}_${Date.now()}`,
-        refreshToken: `refresh_${user.id}_${Date.now()}`,
+        ...tokenBundle,
       },
       error: null,
       meta: { timestamp: Date.now() },
@@ -448,6 +449,8 @@ export async function loginCallback(req, res, next) {
     await updateLastLogin(user.id);
 
     // Generate simple response with user data
+    const tokenBundle = generateTokens(user.id);
+
     res.status(200).json({
       success: true,
       data: {
@@ -457,9 +460,7 @@ export async function loginCallback(req, res, next) {
           fullName: user.full_name,
           photoURL: user.avatar_url,
         },
-        // Return mock tokens - in production use JWT library
-        accessToken: `token_${user.id}_${Date.now()}`,
-        refreshToken: `refresh_${user.id}_${Date.now()}`,
+        ...tokenBundle,
       },
       error: null,
       meta: { timestamp: Date.now() },
@@ -467,6 +468,57 @@ export async function loginCallback(req, res, next) {
   } catch (error) {
     logger.error('Error in login callback:', error);
     next(error);
+  }
+}
+
+/**
+ * POST /api/v1/auth/refresh-token
+ * Refreshes access token using refresh token
+ *
+ * Request body: {refreshToken}
+ */
+export async function refreshToken(req, res, next) {
+  try {
+    const refreshTokenValue = req.body?.refreshToken;
+
+    if (!refreshTokenValue) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          message: 'refreshToken is required',
+          code: 'REFRESH_TOKEN_REQUIRED',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    const { userId } = verifyRefreshToken(refreshTokenValue);
+    const user = await userService.getUserById(userId);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          message: 'Invalid refresh token',
+          code: 'INVALID_REFRESH_TOKEN',
+        },
+        meta: { timestamp: Date.now() },
+      });
+    }
+
+    const tokenBundle = generateTokens(user.id);
+
+    return res.status(200).json({
+      success: true,
+      data: tokenBundle,
+      error: null,
+      meta: { timestamp: Date.now() },
+    });
+  } catch (error) {
+    logger.warn('Refresh token failed', { message: error.message });
+    return next(error);
   }
 }
 

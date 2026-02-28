@@ -298,7 +298,8 @@ export async function getUserSubscription(firebaseUid) {
  */
 export async function listUsers(options = {}) {
   try {
-    const { page = 1, limit = 10, subscriptionTier, status, search } = options;
+    const { page = 1, limit: rawLimit = 10, subscriptionTier, status, search } = options;
+    const limit = Math.min(rawLimit, 100); // cap at 100 items per page
     const offset = (page - 1) * limit;
 
     logger.debug('Listing users', { page, limit, subscriptionTier, status });
@@ -443,6 +444,33 @@ export async function getUserByEmail(email) {
   } catch (error) {
     logger.error('Error fetching user by email:', error);
     if (error.code === 'PGRST116') return null; // Expected: no rows
+    throw new AppError('Failed to fetch user', 500);
+  }
+}
+
+/**
+ * Get user by ID
+ *
+ * @param {string} userId - User ID
+ * @returns {Promise<object|null>} User object or null
+ */
+export async function getUserById(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    return data || null;
+  } catch (error) {
+    logger.error('Error fetching user by id:', error);
+    if (error.code === 'PGRST116') return null;
     throw new AppError('Failed to fetch user', 500);
   }
 }

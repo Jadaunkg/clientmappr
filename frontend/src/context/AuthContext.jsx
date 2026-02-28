@@ -1,4 +1,4 @@
-import React, { createContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,12 +12,20 @@ export const AuthContext = createContext();
  * Initial state for auth reducer
  */
 const initialState = {
-  user: null,
+  user: (() => {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  })(),
   accessToken: localStorage.getItem('accessToken') || null,
   refreshToken: localStorage.getItem('refreshToken') || null,
+  accessTokenExpiresAt: Number(localStorage.getItem('accessTokenExpiresAt') || 0) || 0,
   loading: false,
   error: null,
-  isAuthenticated: !!localStorage.getItem('accessToken'),
+  isAuthenticated: !!localStorage.getItem('accessToken') && !!localStorage.getItem('user'),
 };
 
 /**
@@ -37,6 +45,7 @@ function authReducer(state, action) {
         user: action.payload.user,
         accessToken: action.payload.accessToken,
         refreshToken: action.payload.refreshToken,
+        accessTokenExpiresAt: action.payload.accessTokenExpiresAt || 0,
         isAuthenticated: true,
         error: null,
       };
@@ -47,6 +56,7 @@ function authReducer(state, action) {
         user: null,
         accessToken: null,
         refreshToken: null,
+        accessTokenExpiresAt: 0,
         loading: false,
         error: null,
         isAuthenticated: false,
@@ -58,7 +68,10 @@ function authReducer(state, action) {
     case 'RESTORE_TOKEN':
       return {
         ...state,
+        user: action.payload.user || state.user,
+        refreshToken: action.payload.refreshToken || state.refreshToken,
         accessToken: action.payload.accessToken,
+        accessTokenExpiresAt: action.payload.accessTokenExpiresAt || state.accessTokenExpiresAt,
         isAuthenticated: !!action.payload.accessToken,
       };
     default:
@@ -73,8 +86,22 @@ function authReducer(state, action) {
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
   const navigate = useNavigate();
+  const refreshInFlightRef = useRef(null);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+
+  const saveAuthState = useCallback(({ user, accessToken, refreshToken, accessTokenExpiresAt }) => {
+    localStorage.setItem('accessToken', accessToken || '');
+    localStorage.setItem('refreshToken', refreshToken || '');
+    localStorage.setItem('user', JSON.stringify(user || null));
+    localStorage.setItem('accessTokenExpiresAt', String(accessTokenExpiresAt || 0));
+
+    if (accessToken) {
+      axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+    } else {
+      delete axios.defaults.headers.common.Authorization;
+    }
+  }, []);
 
   /**
    * Sign up with email and password
@@ -94,13 +121,12 @@ export function AuthProvider({ children }) {
 
       const { data } = response;
 
-      // Store tokens in localStorage
-      localStorage.setItem('accessToken', data.data.accessToken);
-      localStorage.setItem('refreshToken', data.data.refreshToken || '');
-      localStorage.setItem('user', JSON.stringify(data.data.user));
-
-      // Set auth header for future requests
-      axios.defaults.headers.common.Authorization = `Bearer ${data.data.accessToken}`;
+      saveAuthState({
+        user: data.data.user,
+        accessToken: data.data.accessToken,
+        refreshToken: data.data.refreshToken || '',
+        accessTokenExpiresAt: data.data.accessTokenExpiresAt || 0,
+      });
 
       dispatch({
         type: 'AUTH_SUCCESS',
@@ -108,6 +134,7 @@ export function AuthProvider({ children }) {
           user: data.data.user,
           accessToken: data.data.accessToken,
           refreshToken: data.data.refreshToken || '',
+          accessTokenExpiresAt: data.data.accessTokenExpiresAt || 0,
         },
       });
 
@@ -117,7 +144,7 @@ export function AuthProvider({ children }) {
       dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
       throw new Error(errorMessage);
     }
-  }, [API_URL]);
+  }, [API_URL, saveAuthState]);
 
   /**
    * Login with email and password
@@ -139,13 +166,12 @@ export function AuthProvider({ children }) {
         throw new Error('Invalid response from server');
       }
 
-      // Store tokens in localStorage
-      localStorage.setItem('accessToken', data.data.accessToken);
-      localStorage.setItem('refreshToken', data.data.refreshToken || '');
-      localStorage.setItem('user', JSON.stringify(data.data.user));
-
-      // Set auth header for future requests
-      axios.defaults.headers.common.Authorization = `Bearer ${data.data.accessToken}`;
+      saveAuthState({
+        user: data.data.user,
+        accessToken: data.data.accessToken,
+        refreshToken: data.data.refreshToken || '',
+        accessTokenExpiresAt: data.data.accessTokenExpiresAt || 0,
+      });
 
       dispatch({
         type: 'AUTH_SUCCESS',
@@ -153,6 +179,7 @@ export function AuthProvider({ children }) {
           user: data.data.user,
           accessToken: data.data.accessToken,
           refreshToken: data.data.refreshToken || '',
+          accessTokenExpiresAt: data.data.accessTokenExpiresAt || 0,
         },
       });
 
@@ -162,7 +189,7 @@ export function AuthProvider({ children }) {
       dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
       throw new Error(errorMessage);
     }
-  }, [API_URL]);
+  }, [API_URL, saveAuthState]);
 
   /**
    * Login via Google OAuth
@@ -201,6 +228,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('accessTokenExpiresAt');
     delete axios.defaults.headers.common.Authorization;
     dispatch({ type: 'LOGOUT' });
   }, []);
@@ -243,18 +271,51 @@ export function AuthProvider({ children }) {
    * Refresh access token using refresh token
    */
   const refreshAccessToken = useCallback(async () => {
+    const refreshTokenValue = localStorage.getItem('refreshToken') || state.refreshToken;
+    if (!refreshTokenValue) {
+      logout();
+      throw new Error('Session expired. Please login again.');
+    }
+
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
+    refreshInFlightRef.current = (async () => {
     try {
       const response = await axios.post(`${API_URL}/auth/refresh-token`, {
-        refreshToken: state.refreshToken,
+        refreshToken: refreshTokenValue,
       });
 
-      const { accessToken } = response.data.data;
-      localStorage.setItem('accessToken', accessToken);
-      axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+      const {
+        accessToken,
+        refreshToken,
+        accessTokenExpiresAt,
+      } = response.data.data;
+
+      const user = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('user') || 'null');
+        } catch (error) {
+          return state.user;
+        }
+      })();
+
+      saveAuthState({
+        user,
+        accessToken,
+        refreshToken: refreshToken || refreshTokenValue,
+        accessTokenExpiresAt: accessTokenExpiresAt || 0,
+      });
 
       dispatch({
         type: 'RESTORE_TOKEN',
-        payload: { accessToken },
+        payload: {
+          user,
+          accessToken,
+          refreshToken: refreshToken || refreshTokenValue,
+          accessTokenExpiresAt: accessTokenExpiresAt || 0,
+        },
       });
 
       return accessToken;
@@ -262,8 +323,13 @@ export function AuthProvider({ children }) {
       // If refresh fails, logout user
       logout();
       throw new Error('Session expired. Please login again.');
+    } finally {
+      refreshInFlightRef.current = null;
     }
-  }, [API_URL, state.refreshToken, logout]);
+    })();
+
+    return refreshInFlightRef.current;
+  }, [API_URL, logout, saveAuthState, state.refreshToken, state.user]);
 
   /**
    * Handle OAuth callback from Google/LinkedIn
@@ -272,6 +338,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const refreshToken = params.get('refreshToken');
     const userParam = params.get('user');
     const error = params.get('error');
 
@@ -280,10 +347,12 @@ export function AuthProvider({ children }) {
         // Parse user data from the URL parameter
         const userData = JSON.parse(userParam);
         
-        // Store tokens and user in localStorage
-        localStorage.setItem('accessToken', token);
-        localStorage.setItem('user', JSON.stringify(userData));
-        axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+        saveAuthState({
+          user: userData,
+          accessToken: token,
+          refreshToken: refreshToken || localStorage.getItem('refreshToken') || '',
+          accessTokenExpiresAt: Number(params.get('accessTokenExpiresAt') || 0),
+        });
 
         // Update auth state
         dispatch({
@@ -291,7 +360,8 @@ export function AuthProvider({ children }) {
           payload: {
             user: userData,
             accessToken: token,
-            refreshToken: '',
+            refreshToken: refreshToken || localStorage.getItem('refreshToken') || '',
+            accessTokenExpiresAt: Number(params.get('accessTokenExpiresAt') || 0),
           },
         });
 
@@ -306,7 +376,69 @@ export function AuthProvider({ children }) {
       dispatch({ type: 'AUTH_ERROR', payload: error });
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [navigate]);
+  }, [navigate, saveAuthState]);
+
+  useEffect(() => {
+    if (state.accessToken) {
+      axios.defaults.headers.common.Authorization = `Bearer ${state.accessToken}`;
+    }
+  }, [state.accessToken]);
+
+  useEffect(() => {
+    if (!state.isAuthenticated) {
+      return undefined;
+    }
+
+    const expiresAt = Number(state.accessTokenExpiresAt || 0);
+    const refreshSkewMs = 2 * 60 * 1000;
+    const now = Date.now();
+
+    if (expiresAt > 0 && now >= (expiresAt - refreshSkewMs)) {
+      refreshAccessToken().catch(() => {});
+    }
+
+    const interval = setInterval(() => {
+      const currentExpiresAt = Number(localStorage.getItem('accessTokenExpiresAt') || 0);
+      if (currentExpiresAt > 0 && Date.now() >= (currentExpiresAt - refreshSkewMs)) {
+        refreshAccessToken().catch(() => {});
+      }
+    }, 30 * 1000);
+
+    return () => clearInterval(interval);
+  }, [refreshAccessToken, state.accessTokenExpiresAt, state.isAuthenticated]);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error?.config;
+        const status = error?.response?.status;
+
+        if (status !== 401 || !originalRequest || originalRequest._retry) {
+          return Promise.reject(error);
+        }
+
+        if (String(originalRequest.url || '').includes('/auth/refresh-token')) {
+          return Promise.reject(error);
+        }
+
+        originalRequest._retry = true;
+
+        try {
+          const nextToken = await refreshAccessToken();
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${nextToken}`;
+          return axios(originalRequest);
+        } catch (refreshError) {
+          return Promise.reject(refreshError);
+        }
+      },
+    );
+
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, [refreshAccessToken]);
 
   const value = {
     state,

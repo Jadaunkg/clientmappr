@@ -78,13 +78,17 @@ describe('Authentication Components', () => {
 
     test('should store authentication token in localStorage', () => {
       const mockToken = 'jwt_token_12345';
+      const setItemSpy = jest.spyOn(Storage.prototype, 'setItem');
       localStorage.setItem('authToken', mockToken);
-      expect(localStorage.setItem).toHaveBeenCalledWith('authToken', mockToken);
+      expect(setItemSpy).toHaveBeenCalledWith('authToken', mockToken);
+      setItemSpy.mockRestore();
     });
 
     test('should remove token on logout', () => {
+      const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
       localStorage.removeItem('authToken');
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authToken');
+      expect(removeItemSpy).toHaveBeenCalledWith('authToken');
+      removeItemSpy.mockRestore();
     });
   });
 
@@ -277,8 +281,10 @@ describe('Authentication Components', () => {
 
   describe('Security', () => {
     test('should not store password in localStorage', () => {
+      const removeItemSpy = jest.spyOn(Storage.prototype, 'removeItem');
       localStorage.removeItem('password');
-      expect(localStorage.removeItem).toHaveBeenCalledWith('password');
+      expect(removeItemSpy).toHaveBeenCalledWith('password');
+      removeItemSpy.mockRestore();
     });
 
     test('should sanitize user input', () => {

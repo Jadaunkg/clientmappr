@@ -1,200 +1,183 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LogOut, User, Settings, ArrowUpRight } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Search, User, Settings, Target, BarChart2, Zap, Globe, TrendingUp, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Sidebar } from '../components/Sidebar';
-import { Button } from '../components/FormComponents';
+import { getMyStats } from '../services/leadsService';
 
-/**
- * Dashboard page - The main application interface with sidebar navigation
- */
-export function Dashboard() {
-  const navigate = useNavigate();
-  const { state, logout } = useAuth();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+function StatCard({ label, value, note, icon: Icon, loading, accent }) {
+  const accentColor = {
+    blue: 'text-blue-600 bg-blue-50',
+    green: 'text-green-600 bg-green-50',
+    amber: 'text-amber-600 bg-amber-50',
+    indigo: 'text-indigo-600 bg-indigo-50',
+  }[accent] || 'text-slate-400 bg-slate-50';
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
-      {/* Sidebar */}
-      <Sidebar />
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">{label}</p>
+        {Icon && (
+          <span className={`rounded-lg p-2 ${accentColor}`}>
+            <Icon className="w-4 h-4" />
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-3xl font-bold text-slate-900">
+        {loading ? (
+          <span className="inline-block h-8 w-16 animate-pulse rounded bg-slate-200" />
+        ) : (
+          value
+        )}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">{note}</p>
+    </div>
+  );
+}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-          <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="hidden md:block">
-              <h2 className="text-lg font-semibold text-slate-900">Dashboard</h2>
-            </div>
+export function Dashboard() {
+  const { state } = useAuth();
+  const userName = state.user?.full_name || state.user?.fullName || 'there';
+  const userTier = state.user?.subscription_tier || state.user?.subscriptionTier || 'free_trial';
 
-            <div className="flex items-center gap-4 ml-auto">
-              <div className="hidden md:flex items-center gap-4 border-r border-slate-200 pr-6">
-                <span className="text-sm text-slate-600">
-                  Welcome, <strong>{state.user?.full_name || state.user?.fullName || 'User'}</strong>
-                </span>
-                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                  {state.user?.subscription_tier || state.user?.subscriptionTier || 'free_trial'}
-                </span>
-              </div>
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                  <Settings className="w-5 h-5 text-slate-600" />
-                </button>
-                <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                  <User className="w-5 h-5 text-slate-600" />
-                </button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Logout</span>
-                </Button>
-              </div>
-            </div>
+  useEffect(() => {
+    let cancelled = false;
+    setStatsLoading(true);
+
+    getMyStats()
+      .then((data) => {
+        if (!cancelled) {
+          setStats(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStats({ totalRuns: 0, todayRuns: 0, totalLeads: 0, leadsNoWebsite: 0 });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const tierLabel = {
+    free_trial: 'Free Trial',
+    starter: 'Starter',
+    professional: 'Professional',
+    enterprise: 'Enterprise',
+  }[userTier] || userTier;
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-slate-900">Welcome back, {userName}</h2>
+        <p className="mt-2 text-slate-600">
+          Your account is active on <span className="font-semibold text-slate-900">{tierLabel}</span>.{' '}
+          Each discovery run fetches up to <strong>60 leads</strong> from Google Maps.
+        </p>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <StatCard
+          label="Total Leads in Account"
+          value={stats?.totalLeads ?? 0}
+          note="Saved leads across all your discovery runs"
+          icon={TrendingUp}
+          accent="blue"
+          loading={statsLoading}
+        />
+        <StatCard
+          label="No-Website Leads"
+          value={stats?.leadsNoWebsite ?? 0}
+          note="Businesses you can pitch a site to"
+          icon={Globe}
+          accent="green"
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Discovery Runs Today"
+          value={stats?.todayRuns ?? 0}
+          note="Google Maps searches today"
+          icon={Zap}
+          accent="amber"
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Total Discovery Runs"
+          value={stats?.totalRuns ?? 0}
+          note="Total searches you've ever run"
+          icon={BarChart2}
+          accent="indigo"
+          loading={statsLoading}
+        />
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <Link
+          to="/search"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-blue-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <span className="rounded-lg bg-blue-50 p-2">
+              <Search className="w-5 h-5 text-blue-600" />
+            </span>
+            <ArrowRight className="w-5 h-5 text-slate-400" />
           </div>
-        </header>
+          <h3 className="mt-4 font-semibold text-slate-900">Discover New Leads</h3>
+          <p className="mt-1 text-sm text-slate-600">Find up to 60 verified businesses per search.</p>
+        </Link>
 
-        {/* Page Content */}
-        <main className="flex-grow py-8 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            {/* Welcome Section */}
-            <div className="mb-12">
-              <h1 className="text-4xl font-bold text-slate-900 tracking-tight mb-3">
-                Welcome back!
-              </h1>
-              <p className="text-lg text-slate-600 max-w-2xl">
-                Find underserved businesses in your area. We scan every business listing and intelligently
-                filter to show you only those without dedicated websites.
-              </p>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              {[
-                {
-                  label: 'Total Leads',
-                  value: '0',
-                  change: '+0% this month',
-                  icon: '📊',
-                  color: 'bg-blue-50 border-blue-200',
-                },
-                {
-                  label: 'Searches',
-                  value: '0',
-                  change: 'Available',
-                  icon: '🔍',
-                  color: 'bg-green-50 border-green-200',
-                },
-                {
-                  label: 'Exports',
-                  value: '0',
-                  change: 'Using 0% quota',
-                  icon: '📁',
-                  color: 'bg-purple-50 border-purple-200',
-                },
-                {
-                  label: 'Account Status',
-                  value: 'Active',
-                  change: 'No issues',
-                  icon: '✅',
-                  color: 'bg-emerald-50 border-emerald-200',
-                },
-              ].map((stat, idx) => (
-                <div
-                  key={idx}
-                  className={`${stat.color} rounded-xl border p-6 shadow-sm hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-slate-600 font-medium mb-2">{stat.label}</p>
-                      <p className="text-3xl font-bold text-slate-900 mb-2">{stat.value}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
-                        {stat.change}
-                        <ArrowUpRight className="w-3 h-3" />
-                      </p>
-                    </div>
-                    <span className="text-2xl">{stat.icon}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Quick Action Section */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm">
-              <h3 className="text-2xl font-bold text-slate-900 mb-6">Get Started</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                  {
-                    title: 'Search for Businesses',
-                    description:
-                      'Find underserved businesses with no website. Scans thousands of local business listings.',
-                    action: 'Start Searching',
-                    icon: '🔍',
-                  },
-                  {
-                    title: 'View Your Leads',
-                    description:
-                      "Access and manage all the qualified leads you've found. Export to Excel or CSV.",
-                    action: 'View Leads',
-                    icon: '📋',
-                  },
-                  {
-                    title: 'Explore Analytics',
-                    description:
-                      'Get insights into your search history and lead generation performance.',
-                    action: 'View Reports',
-                    icon: '📈',
-                  },
-                  {
-                    title: 'Account Settings',
-                    description:
-                      'Manage your profile, subscription, and preferences.',
-                    action: 'Go to Settings',
-                    icon: '⚙️',
-                  },
-                ].map((card, idx) => (
-                  <div
-                    key={idx}
-                    className="border border-slate-200 rounded-lg p-6 hover:shadow-md hover:border-slate-300 transition-all duration-200"
-                  >
-                    <div className="flex items-start gap-4 mb-4">
-                      <span className="text-3xl">{card.icon}</span>
-                      <div>
-                        <h4 className="font-bold text-slate-900 mb-1">{card.title}</h4>
-                        <p className="text-sm text-slate-600">{card.description}</p>
-                      </div>
-                    </div>
-                    <button className="text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors">
-                      {card.action} →
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Features Info */}
-            <div className="mt-12 bg-gradient-to-r from-blue-50 to-slate-50 rounded-xl border border-blue-200 p-8">
-              <div className="max-w-2xl">
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Pro Tip</h3>
-                <p className="text-slate-700 mb-4">
-                  Use specific business categories and locations to find highly targeted leads. The AI-powered
-                  filter ensures you only get businesses that truly lack an online presence.
-                </p>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-semibold rounded-lg hover:bg-slate-800 transition-colors">
-                  Learn More
-                </button>
-              </div>
-            </div>
+        <Link
+          to="/my-leads"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-green-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <span className="rounded-lg bg-green-50 p-2">
+              <BookOpen className="w-5 h-5 text-green-600" />
+            </span>
+            <ArrowRight className="w-5 h-5 text-slate-400" />
           </div>
-        </main>
+          <h3 className="mt-4 font-semibold text-slate-900">My Leads</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Browse your <strong>{stats?.totalLeads ?? 0}</strong> saved leads and filter by city, type, or website status.
+          </p>
+        </Link>
+
+        <Link
+          to="/profile"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <span className="rounded-lg bg-slate-100 p-2">
+              <User className="w-5 h-5 text-slate-600" />
+            </span>
+            <ArrowRight className="w-5 h-5 text-slate-400" />
+          </div>
+          <h3 className="mt-4 font-semibold text-slate-900">Your Profile</h3>
+          <p className="mt-1 text-sm text-slate-600">Review account details, subscription, and settings.</p>
+        </Link>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5">
+        <div className="flex items-start gap-3">
+          <Target className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+          <div>
+            <h3 className="font-semibold text-slate-900">Recommended next step</h3>
+            <p className="text-sm text-slate-600 mt-1">
+              Search with a focused query like{' '}
+              <span className="font-medium text-slate-900">Plumbers in Austin, TX</span> to quickly
+              generate 60 qualified leads — then visit{' '}
+              <Link to="/my-leads" className="text-blue-600 underline font-medium">My Leads</Link> to
+              browse and filter them.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

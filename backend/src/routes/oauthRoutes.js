@@ -102,7 +102,7 @@ router.get('/google/callback', async (req, res) => {
     // Redirect to frontend with access token
     // Redirect to login page (not dashboard) so OAuth data can be parsed before ProtectedRoute checks
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/login?token=${result.accessToken}&user=${encodeURIComponent(JSON.stringify(result.user))}`;
+    const redirectUrl = `${frontendUrl}/login?token=${result.accessToken}&refreshToken=${encodeURIComponent(result.refreshToken)}&accessTokenExpiresAt=${result.accessTokenExpiresAt}&user=${encodeURIComponent(JSON.stringify(result.user))}`;
 
     logger.info('Redirecting to frontend after successful Google OAuth', { redirectUrl: frontendUrl });
     res.redirect(redirectUrl);
@@ -201,7 +201,7 @@ router.get('/linkedin/callback', async (req, res) => {
     // Redirect to frontend with access token
     // Redirect to login page (not dashboard) so OAuth data can be parsed before ProtectedRoute checks
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/login?token=${result.accessToken}&user=${encodeURIComponent(JSON.stringify(result.user))}`;
+    const redirectUrl = `${frontendUrl}/login?token=${result.accessToken}&refreshToken=${encodeURIComponent(result.refreshToken)}&accessTokenExpiresAt=${result.accessTokenExpiresAt}&user=${encodeURIComponent(JSON.stringify(result.user))}`;
 
     logger.info('Redirecting to frontend after successful LinkedIn OAuth', { redirectUrl: frontendUrl });
     res.redirect(redirectUrl);

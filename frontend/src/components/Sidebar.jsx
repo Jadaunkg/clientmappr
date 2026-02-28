@@ -4,9 +4,8 @@ import {
   LayoutGrid,
   Search,
   FileText,
-  BarChart3,
+  User,
   Settings,
-  ChevronDown,
   Menu,
   X,
 } from 'lucide-react';
@@ -29,25 +28,25 @@ export function Sidebar() {
     {
       label: 'Search Businesses',
       icon: Search,
-      href: '/dashboard/search',
+      href: '/search',
       badge: null,
     },
     {
       label: 'My Leads',
       icon: FileText,
-      href: '/dashboard/leads',
-      badge: '0',
+      href: '/leads',
+      badge: null,
     },
     {
-      label: 'Reports',
-      icon: BarChart3,
-      href: '/dashboard/reports',
+      label: 'Profile',
+      icon: User,
+      href: '/profile',
       badge: null,
     },
     {
       label: 'Settings',
       icon: Settings,
-      href: '/dashboard/settings',
+      href: '/settings',
       badge: null,
     },
   ];
@@ -66,17 +65,17 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 text-white transform transition-transform duration-300 z-40 md:relative md:translate-x-0 md:z-20 ${
+        className={`fixed left-0 top-0 h-screen w-64 bg-white border-r border-slate-200 transform transition-transform duration-300 z-40 md:relative md:translate-x-0 md:z-20 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Logo Section */}
-        <div className="h-16 border-b border-slate-800 flex items-center px-6 gap-3">
+        <Link to="/" className="h-16 border-b border-slate-200 flex items-center px-6 gap-3 hover:bg-slate-50 transition-colors">
           <div className="bg-blue-600 p-2 rounded-lg">
             <LayoutGrid className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-lg font-bold text-white">ClientMapr</h1>
-        </div>
+          <h1 className="text-lg font-bold text-slate-900">ClientMapr</h1>
+        </Link>
 
         {/* Navigation Menu */}
         <nav className="flex-1 py-8 px-4 space-y-2">
@@ -91,7 +90,7 @@ export function Sidebar() {
                 className={`flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 ${
                   active
                     ? 'bg-blue-600 text-white font-semibold'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -109,8 +108,8 @@ export function Sidebar() {
         </nav>
 
         {/* Footer Info */}
-        <div className="p-4 border-t border-slate-800">
-          <p className="text-xs text-slate-400 text-center">
+        <div className="p-4 border-t border-slate-200">
+          <p className="text-xs text-slate-500 text-center">
             © 2026 ClientMapr. All rights reserved.
           </p>
         </div>

@@ -13,7 +13,7 @@ import { z } from 'zod';
  * Email validation regex
  * RFC 5322 simplified pattern
  */
-const emailSchema = z.string().email('Invalid email format').toLowerCase().trim();
+const emailSchema = z.string().trim().toLowerCase().email('Invalid email format');
 
 /**
  * Firebase UID validation
